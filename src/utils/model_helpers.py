@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_price_elasticity(df: pd.DataFrame,
-                             price_column: str = 'Price per Unit',
-                             quantity_column: str = 'Unit Sales',
+                             price_column: str = 'unit_price',
+                             quantity_column: str = 'quantity_sold',
                              group_column: Optional[str] = None) -> pd.DataFrame:
     """
     Calculate price elasticity using log-log regression.
     
     Args:
         df (pd.DataFrame): Input dataframe
-        price_column (str): Price column name
-        quantity_column (str): Quantity column name
+        price_column (str): Price column name (default: 'unit_price')
+        quantity_column (str): Quantity column name (default: 'quantity_sold')
         group_column (str, optional): Column to group by
         
     Returns:
@@ -46,18 +46,18 @@ def calculate_price_elasticity(df: pd.DataFrame,
         for group in df_calc[group_column].unique():
             group_data = df_calc[df_calc[group_column] == group]
             if len(group_data) > 10:  # Minimum observations
-                elasticity = _calculate_elasticity_for_group(group_data)
+                elasticity = _calculate_elasticity_for_group(group_data, price_column, quantity_column)
                 elasticity['group'] = group
                 results.append(elasticity)
     else:
-        elasticity = _calculate_elasticity_for_group(df_calc)
+        elasticity = _calculate_elasticity_for_group(df_calc, price_column, quantity_column)
         elasticity['group'] = 'Overall'
         results.append(elasticity)
     
     return pd.DataFrame(results)
 
 
-def _calculate_elasticity_for_group(df: pd.DataFrame) -> Dict:
+def _calculate_elasticity_for_group(df: pd.DataFrame, price_column: str, quantity_column: str) -> Dict:
     """Calculate elasticity for a single group."""
     try:
         X = df[['log_price']]
@@ -72,8 +72,8 @@ def _calculate_elasticity_for_group(df: pd.DataFrame) -> Dict:
             'price_elasticity': model.coef_[0],
             'r_squared': r2_score(y, y_pred),
             'observations': len(df),
-            'mean_price': df['Price per Unit'].mean(),
-            'mean_quantity': df['Unit Sales'].mean()
+            'mean_price': df[price_column].mean(),
+            'mean_quantity': df[quantity_column].mean()
         }
     except Exception as e:
         logger.error(f"Error calculating elasticity: {e}")
@@ -81,8 +81,8 @@ def _calculate_elasticity_for_group(df: pd.DataFrame) -> Dict:
             'price_elasticity': np.nan,
             'r_squared': np.nan,
             'observations': len(df),
-            'mean_price': df['Price per Unit'].mean() if 'Price per Unit' in df.columns else np.nan,
-            'mean_quantity': df['Unit Sales'].mean() if 'Unit Sales' in df.columns else np.nan
+            'mean_price': df[price_column].mean() if price_column in df.columns else np.nan,
+            'mean_quantity': df[quantity_column].mean() if quantity_column in df.columns else np.nan
         }
 
 

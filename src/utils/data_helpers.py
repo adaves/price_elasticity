@@ -72,16 +72,16 @@ def load_sales_data(file_path: str, date_column: str = 'date') -> pd.DataFrame:
 
 def validate_data_quality(df: pd.DataFrame, 
                          required_columns: List[str],
-                         price_column: str = 'Price per Unit',
-                         quantity_column: str = 'Unit Sales') -> Dict:
+                         price_column: str = 'unit_price',
+                         quantity_column: str = 'quantity_sold') -> Dict:
     """
     Validate data quality and return summary of issues.
     
     Args:
         df (pd.DataFrame): Input dataframe
         required_columns (List[str]): List of required columns
-        price_column (str): Name of price column
-        quantity_column (str): Name of quantity column
+        price_column (str): Name of price column (default: 'unit_price')
+        quantity_column (str): Name of quantity column (default: 'quantity_sold')
         
     Returns:
         Dict: Dictionary containing validation results
@@ -134,17 +134,17 @@ def validate_data_quality(df: pd.DataFrame,
 
 
 def clean_sales_data(df: pd.DataFrame, 
-                    price_column: str = 'Price per Unit',
-                    quantity_column: str = 'Unit Sales',
+                    price_column: str = 'unit_price',
+                    quantity_column: str = 'quantity_sold',
                     date_column: str = 'date') -> pd.DataFrame:
     """
     Clean sales data by handling missing values and outliers.
     
     Args:
         df (pd.DataFrame): Input dataframe
-        price_column (str): Name of price column
-        quantity_column (str): Name of quantity column
-        date_column (str): Name of date column
+        price_column (str): Name of price column (default: 'unit_price')
+        quantity_column (str): Name of quantity column (default: 'quantity_sold')
+        date_column (str): Name of date column (default: 'date')
         
     Returns:
         pd.DataFrame: Cleaned dataframe
@@ -391,15 +391,15 @@ def standardize_iri_columns(df: pd.DataFrame) -> pd.DataFrame:
     
     # Create column mapping for IRI data
     column_mapping = {
-        'Price per Unit': 'unit_price',
-        'Unit Sales': 'quantity_sold',
+        'unit_price': 'unit_price',
+        'quantity_sold': 'quantity_sold',
         'Time': 'time_original',
         'Product': 'product_name',
         'Geography': 'geography',
-        'Dollar Sales': 'revenue',
-        'Volume Sales': 'volume',
-        '% Stores': 'store_penetration',
-        'ACV Weighted Distribution': 'distribution_acv'
+        'revenue': 'revenue',
+        'volume': 'volume',
+        'store_penetration': 'store_penetration',
+        'distribution_acv': 'distribution_acv'
     }
     
     # Rename columns that exist
@@ -408,3 +408,129 @@ def standardize_iri_columns(df: pd.DataFrame) -> pd.DataFrame:
     
     logger.info(f"Standardized {len(existing_renames)} IRI column names")
     return df_std 
+
+
+def load_cleaned_data(file_path: str = None) -> pd.DataFrame:
+    """
+    Load cleaned sales data from the processed data directory.
+    
+    Args:
+        file_path (str): Path to the cleaned data file (default: auto-detect from project root)
+        
+    Returns:
+        pd.DataFrame: Loaded cleaned sales data
+    """
+    try:
+        # Auto-detect the correct path relative to project root
+        if file_path is None:
+            # Get the current working directory
+            current_dir = Path.cwd()
+            
+            # Look for the cleaned data file in common locations
+            possible_paths = [
+                # From project root
+                current_dir / "data/processed/iri_sales_data_clean.parquet",
+                # From notebooks directory (most common case)
+                current_dir.parent / "data/processed/iri_sales_data_clean.parquet",
+                # Alternative relative paths
+                Path("../data/processed/iri_sales_data_clean.parquet"),
+                Path("data/processed/iri_sales_data_clean.parquet"),
+                # Absolute path construction
+                current_dir / ".." / "data" / "processed" / "iri_sales_data_clean.parquet"
+            ]
+            
+            # Find the first path that exists
+            file_path = None
+            for path in possible_paths:
+                try:
+                    if path.exists():
+                        file_path = str(path.resolve())
+                        break
+                except:
+                    continue
+            
+            # If still not found, try a more explicit approach
+            if file_path is None:
+                # Try to find project root by looking for specific files
+                search_dir = current_dir
+                for _ in range(3):  # Look up to 3 levels up
+                    if (search_dir / "requirements.txt").exists() or (search_dir / "README.md").exists():
+                        potential_path = search_dir / "data" / "processed" / "iri_sales_data_clean.parquet"
+                        if potential_path.exists():
+                            file_path = str(potential_path.resolve())
+                            break
+                    search_dir = search_dir.parent
+            
+            # If still not found, use default
+            if file_path is None:
+                file_path = "data/processed/iri_sales_data_clean.parquet"
+        
+        # Load the file
+        df = pd.read_parquet(file_path)
+        logger.info(f"Loaded cleaned data: {len(df)} rows, {len(df.columns)} columns from {file_path}")
+        return df
+    except Exception as e:
+        logger.error(f"Error loading cleaned data from {file_path}: {e}")
+        
+        # Print debug information
+        current_dir = Path.cwd()
+        logger.info(f"Current working directory: {current_dir}")
+        logger.info(f"Attempted file path: {file_path}")
+        
+        # List what's actually available
+        try:
+            data_dir = current_dir / "data" / "processed"
+            if data_dir.exists():
+                logger.info(f"Files in {data_dir}: {list(data_dir.glob('*'))}")
+            
+            parent_data_dir = current_dir.parent / "data" / "processed"
+            if parent_data_dir.exists():
+                logger.info(f"Files in {parent_data_dir}: {list(parent_data_dir.glob('*'))}")
+        except:
+            pass
+            
+        raise
+
+
+def get_cleaned_data_summary(df: pd.DataFrame) -> Dict:
+    """
+    Get summary statistics specific to cleaned IRI sales data.
+    
+    Args:
+        df (pd.DataFrame): Cleaned sales dataframe
+        
+    Returns:
+        Dict: Summary statistics for cleaned data
+    """
+    summary = {
+        'total_records': len(df),
+        'date_range': {
+            'start': df['date'].min(),
+            'end': df['date'].max(),
+            'total_weeks': df['date'].nunique()
+        },
+        'geographic_coverage': {
+            'regions': df['geography'].nunique(),
+            'unique_regions': list(df['geography'].unique())
+        },
+        'product_coverage': {
+            'products': df['product_name'].nunique(),
+            'sample_products': list(df['product_name'].unique()[:5])  # First 5 products
+        },
+        'sales_metrics': {
+            'total_quantity': df['quantity_sold'].sum(),
+            'total_revenue': df['revenue'].sum(),
+            'avg_unit_price': df['unit_price'].mean(),
+            'price_range': {
+                'min': df['unit_price'].min(),
+                'max': df['unit_price'].max()
+            }
+        },
+        'data_quality': {
+            'missing_values': df.isnull().sum().to_dict(),
+            'zero_quantities': (df['quantity_sold'] == 0).sum(),
+            'negative_prices': (df['unit_price'] <= 0).sum()
+        }
+    }
+    
+    return summary 
