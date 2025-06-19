@@ -1,0 +1,103 @@
+# Price Elasticity Analysis Configuration
+
+# Data Configuration
+data:
+  raw_data_path: "data/raw/"
+  processed_data_path: "data/processed/"
+  sample_data_path: "data/sample/"
+  output_path: "outputs/"
+  
+# Analysis Parameters
+analysis:
+  test_size: 0.2
+  validation_size: 0.2
+  random_state: 42
+  cv_folds: 5
+  
+# Price Elasticity Specific
+elasticity:
+  # Price change thresholds for analysis
+  min_price_change: 0.05  # 5% minimum change
+  max_price_change: 0.50  # 50% maximum change
+  
+  # Time periods for analysis
+  analysis_period_days: 365
+  comparison_period_days: 30
+  
+  # Elasticity categories
+  elastic_threshold: -1.0
+  inelastic_threshold: -1.0
+
+# Modeling Configuration
+models:
+  algorithms:
+    - linear_regression
+    - ridge_regression
+    - lasso_regression
+    - random_forest
+    - gradient_boosting
+  
+  hyperparameters:
+    ridge:
+      alpha: [0.1, 1.0, 10.0, 100.0]
+    lasso:
+      alpha: [0.01, 0.1, 1.0, 10.0]
+    random_forest:
+      n_estimators: [100, 200, 300]
+      max_depth: [5, 10, 15, null]
+    
+# Feature Engineering
+features:
+  # Lag features
+  price_lags: [1, 7, 14, 30]
+  demand_lags: [1, 7, 14]
+  
+  # Rolling windows
+  rolling_windows: [7, 14, 30, 90]
+  
+  # Seasonality
+  include_seasonality: true
+  seasonal_periods: [7, 30, 365]  # weekly, monthly, yearly
+
+# Visualization Settings
+visualization:
+  style: "whitegrid"
+  palette: "husl"
+  figure_size: [12, 8]
+  dpi: 300
+  format: "png"
+  
+  # Plot-specific settings
+  correlation_threshold: 0.7
+  feature_importance_top_n: 15
+  
+# Business Rules
+business:
+  # Product categories for analysis
+  categories:
+    - canned_tuna
+    - canned_salmon
+  
+  # Price boundaries
+  min_price_threshold: 0.01
+  max_price_multiplier: 10.0
+  
+  # Volume boundaries
+  min_volume_threshold: 1
+  outlier_volume_multiplier: 5.0
+
+# Reporting
+reporting:
+  confidence_level: 0.95
+  significance_level: 0.05
+  decimal_places: 4
+  
+  # Export formats
+  export_formats: ["csv", "xlsx", "json"]
+  include_charts: true
+  
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "outputs/analysis.log" 
