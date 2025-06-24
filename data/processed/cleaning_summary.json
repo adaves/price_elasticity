@@ -1,17 +1,17 @@
 {
-  "cleaning_timestamp": "2025-06-19T14:37:22.998215",
+  "cleaning_timestamp": "2025-06-24T09:35:13.370329",
   "original_shape": [
-    1960393,
+    1979310,
     36
   ],
   "final_shape": [
-    1905890,
+    1979310,
     37
   ],
-  "rows_removed": 54503,
+  "rows_removed": 0,
   "columns_removed": -1,
-  "memory_before_mb": 1170.7920246124268,
-  "memory_after_mb": 829.3769817352295,
+  "memory_before_mb": 1182.0402612686157,
+  "memory_after_mb": 846.2111930847168,
   "missing_values_handled": 30,
   "outliers_capped": 2,
   "categorical_columns_optimized": 2

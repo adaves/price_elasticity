@@ -1,0 +1,211 @@
+name: Weekly Price Elasticity Analysis
+
+on:
+  # DISABLED: Scheduled runs require database access setup
+  # schedule:
+  #   # Primary run: Tuesday 9 AM CST (4 PM UTC)
+  #   - cron: '0 16 * * 2'
+  #   # Backup run: Tuesday 3 PM CST (10 PM UTC)  
+  #   - cron: '0 22 * * 2'
+  
+  # Allow manual triggering (requires database setup)
+  workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: 'Force data refresh even if recent data exists'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.13.3'
+
+jobs:
+  elasticity_analysis:
+    runs-on: windows-latest
+    timeout-minutes: 120  # 2 hour timeout
+    
+    steps:
+    - name: 📦 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1  # Shallow clone for speed
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: 📋 Cache virtual environment
+      uses: actions/cache@v3
+      id: venv-cache
+      with:
+        path: venv
+        key: venv-${{ runner.os }}-python${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          venv-${{ runner.os }}-python${{ env.PYTHON_VERSION }}-
+
+    - name: 🔧 Create virtual environment
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      run: |
+        python -m venv venv
+        venv\Scripts\activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      shell: cmd
+
+    - name: 📊 Verify environment
+      run: |
+        venv\Scripts\activate
+        python --version
+        pip list
+        echo "Environment verified successfully!"
+      shell: cmd
+
+    - name: 🔍 Check data freshness
+      id: data_check
+      run: |
+        venv\Scripts\activate
+        python -c "
+        from pathlib import Path
+        from datetime import datetime, timedelta
+        import sys
+        
+        data_file = Path('data/raw/iri_sales_data.parquet')
+        force_refresh = '${{ github.event.inputs.force_refresh }}' == 'true'
+        
+        if force_refresh:
+            print('🔄 Force refresh requested')
+            print('needs_refresh=true' >> '%GITHUB_OUTPUT%')
+            sys.exit(0)
+        
+        if not data_file.exists():
+            print('📋 No existing data file found')
+            print('needs_refresh=true' >> '%GITHUB_OUTPUT%')
+            sys.exit(0)
+        
+        # Check if data is older than 6 days (allow some flexibility)
+        mod_time = datetime.fromtimestamp(data_file.stat().st_mtime)
+        age_days = (datetime.now() - mod_time).days
+        
+        if age_days > 6:
+            print(f'📅 Data is {age_days} days old - refreshing')
+            print('needs_refresh=true' >> '%GITHUB_OUTPUT%')
+        else:
+            print(f'✅ Data is recent ({age_days} days old) - skipping refresh')
+            print('needs_refresh=false' >> '%GITHUB_OUTPUT%')
+        "
+      shell: cmd
+
+    - name: 🗂️ Create output directories
+      run: |
+        mkdir -p outputs\logs
+        mkdir -p outputs\figures
+        mkdir -p outputs\models
+        mkdir -p outputs\reports
+        echo "Output directories created"
+      shell: cmd
+
+    - name: 🚀 Run elasticity analysis pipeline
+      id: pipeline
+      run: |
+        venv\Scripts\activate
+        echo "Starting pipeline execution..."
+        python scripts\run_pipeline.py
+        echo "Pipeline completed successfully!"
+      shell: cmd
+
+    - name: 📊 Archive results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: elasticity-analysis-${{ github.run_number }}
+        path: |
+          outputs/
+          !outputs/logs/
+        retention-days: 30
+
+    - name: 📋 Upload execution logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: execution-logs-${{ github.run_number }}
+        path: outputs/logs/
+        retention-days: 7
+
+    - name: 📈 Performance summary
+      if: success()
+      run: |
+        venv\Scripts\activate
+        python -c "
+        from scripts.performance_tracker import PerformanceTracker
+        tracker = PerformanceTracker()
+        print(tracker.generate_performance_summary())
+        "
+      shell: cmd
+
+    - name: 🧹 Cleanup old outputs
+      if: success()
+      run: |
+        venv\Scripts\activate
+        python scripts\cleanup_outputs.py
+      shell: cmd
+
+    - name: 📧 Notify on failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const title = '❌ Weekly Elasticity Analysis Failed';
+          const body = `
+          **Workflow Failed**: ${context.workflow}
+          **Run ID**: ${context.runId}
+          **Branch**: ${context.ref}
+          **Commit**: ${context.sha.substring(0, 7)}
+          **Triggered by**: ${context.eventName}
+          
+          **View Details**: [Click here](${workflowUrl})
+          
+          Please check the logs for detailed error information.
+          `;
+          
+          // Create an issue for the failure
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['automation', 'error']
+          });
+
+    - name: ✅ Success notification
+      if: success()
+      run: |
+        echo "🎉 Weekly Price Elasticity Analysis completed successfully!"
+        echo "📊 Results available in outputs/ directory"
+        echo "📈 Performance metrics logged"
+        echo "🧹 Cleanup completed"
+      shell: cmd
+
+  # Job to handle missed weeks detection
+  missed_weeks_check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - name: 📦 Checkout repository  
+      uses: actions/checkout@v4
+
+    - name: 🔍 Check for missed weeks
+      run: |
+        echo "🔍 Checking for missed weeks..."
+        # This is a placeholder for future enhancement
+        # Could check performance log for gaps and trigger additional runs
+        echo "✅ Missed weeks check completed"
+
+    - name: 📋 Report missed weeks
+      if: failure()
+      run: |
+        echo "⚠️ Detected missed weeks - consider manual intervention" 
